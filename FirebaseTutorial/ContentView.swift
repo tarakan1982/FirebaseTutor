@@ -58,6 +58,7 @@ struct Home: View {
 }
 struct CellView: View {
     var data: category
+    @State var show = false
     var body: some View {
         VStack {
             AnimatedImage(url: URL(string: data.pic))
@@ -74,7 +75,7 @@ struct CellView: View {
                 }
                 Spacer()
                 Button(action: {
-                    
+                    self.show.toggle()
                 }) {
                     Image(systemName: "arrow.right")
                         .font(.body)
@@ -86,6 +87,9 @@ struct CellView: View {
             .padding(.bottom, 6)
         }.background(Color.white)
         .cornerRadius(20)
+        .sheet(isPresented: self.$show) {
+            OrderView(data: self.data)
+        }
     }
 }
 
@@ -127,4 +131,67 @@ struct category: Identifiable {
     var name: String
     var price: String
     var pic: String
+}
+
+struct OrderView: View {
+    var data: category
+    @State var cash = false
+    @State var quick = false
+    @State var quantity = 0
+    @Environment(\.presentationMode) var presentation
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            AnimatedImage(url: URL(string: data.pic)!)
+                .resizable()
+                .frame(height: UIScreen.main.bounds.height / 2 - 100)
+            VStack(alignment: .leading, spacing: 25) {
+                Text(data.name)
+                    .fontWeight(.heavy)
+                    .font(.title)
+                Text("Цена: \(data.price) руб.")
+                    .fontWeight(.heavy)
+                    .font(.body)
+                
+                Toggle(isOn: $cash) {
+                    Text("Оплата наличными")
+                }
+                Toggle(isOn: $quick) {
+                    Text("Быстрая доставка")
+                }
+               Stepper(
+                onIncrement: {
+                    self.quantity += 1
+                },
+                onDecrement: {
+                    if self.quantity != 0 {
+                        self.quantity -= 1
+                    }
+                })
+                 {
+                    Text("Количество \(self.quantity)")
+                }
+                Button(action: {
+                    let db = Firestore.firestore()
+                    db.collection("cart")
+                        .document()
+                        .setData(["item":self.data.name, "quantity":self.quantity, "quickdelivery":self.quick, "cashondelivery":self.cash, "pic":self.data.pic]) { (err) in
+                            if err != nil {
+                                print((err?.localizedDescription)!)
+                                return
+                            }
+                            self.presentation.wrappedValue.dismiss()
+                        }
+                }) {
+                    Text("В корзину")
+                        .padding(.vertical)
+                        .frame(width: UIScreen.main.bounds.width - 30)
+                }.background(Color.orange)
+                .foregroundColor(.white)
+                .cornerRadius(20)
+
+            } .padding()
+            Spacer()
+        }
+    }
 }

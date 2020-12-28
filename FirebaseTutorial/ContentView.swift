@@ -159,9 +159,7 @@ struct OrderView: View {
         }
     }
 }
-
 struct CartView: View {
-    
     @ObservedObject var cartdata = getCartData()
     
     var body: some View {
@@ -189,7 +187,7 @@ struct CartView: View {
         .cornerRadius(25)
     }
 }
-
+//Надо будет перенести этот класс
 class getCartData: ObservableObject {
     @Published var datas = [cart]()
     init() {
@@ -210,7 +208,6 @@ class getCartData: ObservableObject {
         }
     }
 }
-
 struct cart: Identifiable {
     var id: String
     var name: String

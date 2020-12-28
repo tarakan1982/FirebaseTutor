@@ -10,20 +10,38 @@ import Firebase
 import SDWebImageSwiftUI
 
 struct ContentView: View {
+    
+    @State var show = false
+    
     var body: some View {
-        NavigationView {
-        Home()
-            .navigationBarTitle("Наше меню", displayMode: .inline)
-            .navigationBarItems(trailing:
-                                    Button(action: {
-                                        
-                                    }) {
-                                        Image(systemName: "cart.fill")
-                                            .font(.body)
-                                            .foregroundColor(.black)
-                                    }
-            )
-    }
+        ZStack {
+            NavigationView {
+            Home()
+                .navigationBarTitle("Наше меню", displayMode: .inline)
+                .navigationBarItems(trailing:
+                                        Button(action: {
+                                            self.show.toggle()
+                                        }) {
+                                            Image(systemName: "cart.fill")
+                                                .font(.body)
+                                                .foregroundColor(.black)
+                                        }
+                )
+        }
+            if self.show {
+                GeometryReader {_ in
+                    CartView()
+                        .padding(.top, 100) //без этих паддинков, почему то всплывающее окно корзины находится сбоку
+                        .padding(.leading, 50)
+                }.background(Color.black.opacity(0.55).edgesIgnoringSafeArea(.all)
+                
+                                .onTapGesture {
+                                    self.show.toggle()
+                                }
+                )
+            }
+        } .animation(.linear(duration: 1.0))
+       
     }
 }
 
@@ -33,29 +51,6 @@ struct ContentView_Previews: PreviewProvider {
     }
 }
 
-struct Home: View {
-    
-    @ObservedObject var categories = getCategoriesData()
-    
-    var body: some View {
-        VStack {
-            if self.categories.datas.count != 0 {
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 15) {
-                        ForEach(self.categories.datas) { i in
-                            CellView(data: i)
-                        }
-                        
-                    } .padding()
-                    
-                }.background(Color("Color").edgesIgnoringSafeArea(.all))
-            }
-            else {
-                Loader()
-            }
-        }
-    }
-}
 struct CellView: View {
     var data: category
     @State var show = false
@@ -79,9 +74,9 @@ struct CellView: View {
                 }) {
                     Image(systemName: "arrow.right")
                         .font(.body)
-                        .foregroundColor(.black)
+                        .foregroundColor(.white)
                         .padding(14)
-                } .background(Color.yellow)
+                } .background(Color.orange)
                 .clipShape(Circle())
             }.padding(.horizontal)
             .padding(.bottom, 6)
@@ -93,38 +88,7 @@ struct CellView: View {
     }
 }
 
-struct Loader: UIViewRepresentable {
-    func makeUIView(context: UIViewRepresentableContext<Loader>) -> UIActivityIndicatorView {
-        let indicator = UIActivityIndicatorView(style: .large)
-        indicator.startAnimating()
-        return indicator
-    }
-    func updateUIView(_ uiView: UIActivityIndicatorView, context: UIViewRepresentableContext<Loader>) {
-        
-    }
-}
 
-class getCategoriesData: ObservableObject {
-    @Published var datas = [category]()
-    init() {
-        let db = Firestore.firestore()
-        
-        db.collection("categories").addSnapshotListener { (snap, err) in
-            if err != nil {
-                print((err?.localizedDescription)!)
-                return
-            }
-            for i in snap!.documentChanges {
-                let id = i.document.documentID
-                let name = i.document.get("name") as! String
-                let price = i.document.get("price") as! String
-                let pic = i.document.get("pic") as! String
-                
-                self.datas.append(category(id: id, name: name, price: price, pic: pic))
-            }
-        }
-    }
-}
 
 struct category: Identifiable {
     var id: String
@@ -194,4 +158,62 @@ struct OrderView: View {
             Spacer()
         }
     }
+}
+
+struct CartView: View {
+    
+    @ObservedObject var cartdata = getCartData()
+    
+    var body: some View {
+        VStack(alignment: .leading) {
+            
+            Text(self.cartdata.datas.count != 0 ? "Ваши заказы" : "Ваша корзина пуста").padding([.top, .leading])
+                .foregroundColor(.white)
+            
+            if self.cartdata.datas.count != 0 {
+                List(self.cartdata.datas) { i in
+                    HStack(spacing: 15) {
+                        AnimatedImage(url: URL(string: i.pic))
+                            .resizable()
+                            .frame(width: 55, height: 55)
+                            .cornerRadius(10)
+                        VStack(alignment: .leading) {
+                            Text(i.name)
+                            Text("Количество: \(i.quantity)")
+                        }
+                    }
+                }
+            }
+        }.frame(width: UIScreen.main.bounds.width - 110, height: UIScreen.main.bounds.height - 350)
+        .background(Color.orange)
+        .cornerRadius(25)
+    }
+}
+
+class getCartData: ObservableObject {
+    @Published var datas = [cart]()
+    init() {
+        let db = Firestore.firestore()
+        db.collection("cart").getDocuments { (snap, err) in
+            if err != nil {
+                print((err?.localizedDescription)!)
+                return
+            }
+            for i in snap!.documents {
+                let id = i.documentID
+                let name = i.get("item") as! String
+                let quantity = i.get("quantity") as! NSNumber
+                let pic = i.get("pic") as! String
+                
+                self.datas.append(cart(id: id, name: name, quantity: quantity, pic: pic))
+            }
+        }
+    }
+}
+
+struct cart: Identifiable {
+    var id: String
+    var name: String
+    var quantity: NSNumber
+    var pic: String
 }

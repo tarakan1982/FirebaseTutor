@@ -169,15 +169,32 @@ struct CartView: View {
                 .foregroundColor(.white)
             
             if self.cartdata.datas.count != 0 {
-                List(self.cartdata.datas) { i in
-                    HStack(spacing: 15) {
-                        AnimatedImage(url: URL(string: i.pic))
-                            .resizable()
-                            .frame(width: 55, height: 55)
-                            .cornerRadius(10)
-                        VStack(alignment: .leading) {
-                            Text(i.name)
-                            Text("Количество: \(i.quantity)")
+                List{
+                    
+                    ForEach(self.cartdata.datas) { i in
+                        HStack(spacing: 15) {
+                            AnimatedImage(url: URL(string: i.pic))
+                                .resizable()
+                                .frame(width: 55, height: 55)
+                                .cornerRadius(10)
+                            VStack(alignment: .leading) {
+                                Text(i.name)
+                                Text("Количество: \(i.quantity)")
+                            }
+                        }
+                        .onTapGesture {
+                            UIApplication.shared.windows.last?.rootViewController?.present(textFieldAlertView(id: i.id), animated: true, completion: nil)
+                        }
+                    }
+                    .onDelete { (index) in
+                        let db = Firestore.firestore()
+                        db.collection("cart").document(self.cartdata.datas[index.last!].id).delete { (err) in
+                            if err != nil {
+                                
+                                print((err?.localizedDescription)!)
+                                return
+                            }
+                            self.cartdata.datas.remove(atOffsets: index)
                         }
                     }
                 }
@@ -192,25 +209,61 @@ class getCartData: ObservableObject {
     @Published var datas = [cart]()
     init() {
         let db = Firestore.firestore()
-        db.collection("cart").getDocuments { (snap, err) in
+        db.collection("cart").addSnapshotListener{ (snap, err) in
             if err != nil {
                 print((err?.localizedDescription)!)
                 return
             }
-            for i in snap!.documents {
-                let id = i.documentID
-                let name = i.get("item") as! String
-                let quantity = i.get("quantity") as! NSNumber
-                let pic = i.get("pic") as! String
-                
-                self.datas.append(cart(id: id, name: name, quantity: quantity, pic: pic))
+            for i in snap!.documentChanges {
+                if i.type == .added {
+                    let id = i.document.documentID
+                    let name = i.document.get("item") as! String
+                    let quantity = i.document.get("quantity") as! NSNumber
+                    let pic = i.document.get("pic") as! String
+
+                    self.datas.append(cart(id: id, name: name, quantity: quantity, pic: pic))
+                }
+                if i.type == .modified {
+                    let id = i.document.documentID
+                    let quantity = i.document.get("quantity") as! NSNumber
+                    
+                    for j in 0..<self.datas.count {
+                        if self.datas[j].id == id {
+                            self.datas[j].quantity = quantity
+                        }
+                    }
+
+                }
             }
         }
     }
 }
+
 struct cart: Identifiable {
     var id: String
     var name: String
     var quantity: NSNumber
     var pic: String
+}
+
+func textFieldAlertView(id: String) -> UIAlertController {
+    let alert = UIAlertController(title: "Обновить", message: "Введите количество", preferredStyle: .alert)
+    alert.addTextField { (txt) in
+        txt.placeholder = "Количество"
+        txt.keyboardType = .numberPad
+    }
+    let update = UIAlertAction(title: "Обновить", style: .default) { (_) in
+        let db = Firestore.firestore()
+        let value = alert.textFields![0].text!
+        db.collection("cart").document(id).updateData(["quantity" : Int(value)!]) { (err) in
+            if err != nil {
+                print((err?.localizedDescription)!)
+                return
+            }
+        }
+    }
+    let cancel = UIAlertAction(title: "Отменить", style: .destructive, handler: nil)
+    alert.addAction(cancel)
+    alert.addAction(update)
+    return alert
 }
